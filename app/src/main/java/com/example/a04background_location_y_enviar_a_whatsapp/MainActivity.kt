@@ -3,105 +3,146 @@ package com.example.a04background_location_y_enviar_a_whatsapp
 import android.Manifest
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.location.Location
 import android.net.Uri
-import androidx.core.net.toUri
-import androidx.activity.result.contract.ActivityResultContracts
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.core.content.ContextCompat
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
-import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
-import com.example.a04background_location_y_enviar_a_whatsapp.ui.theme._04BackgroundLocationyEnviaraWhatsappTheme
+import androidx.compose.ui.unit.sp
+import androidx.core.app.ActivityCompat
 import com.google.android.gms.location.LocationServices
-import android.widget.Toast
+import androidx.compose.foundation.Image
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.font.FontWeight
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        enableEdgeToEdge()
-        setContent {
-            _04BackgroundLocationyEnviaraWhatsappTheme {
-                EnviarUbicacionWhatsappUI()
-            }
-        }
-    }
-}
-
-@Composable
-fun EnviarUbicacionWhatsappUI() {
-    var message by remember { mutableStateOf("") }
-    val context = LocalContext.current
-    val fusedLocationClient = remember { LocationServices.getFusedLocationProviderClient(context) }
-
-    val permissionLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.RequestPermission(),
-        onResult = { /* el resultado se maneja dentro del botón */ }
-    )
-    val hasPermission = ContextCompat.checkSelfPermission(
-        context,
-        android.Manifest.permission.ACCESS_FINE_LOCATION
-    ) == PackageManager.PERMISSION_GRANTED
-
-    Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
-        Column(
-            modifier = Modifier
-                .padding(innerPadding)
-                .padding(16.dp)
+        if (ActivityCompat.checkSelfPermission(
+                this,
+                Manifest.permission.ACCESS_FINE_LOCATION
+            ) != PackageManager.PERMISSION_GRANTED
         ) {
-            OutlinedTextField(
-                value = message,
-                onValueChange = { message = it },
-                label = { Text("Mensaje") },
-                modifier = Modifier.fillMaxWidth()
+            ActivityCompat.requestPermissions(
+                this,
+                arrayOf(Manifest.permission.ACCESS_FINE_LOCATION),
+                1001
             )
-            Spacer(modifier = Modifier.height(8.dp))
-            Button(
-                onClick = {
-                    if (hasPermission) {
-                        fusedLocationClient.lastLocation.addOnSuccessListener { location ->
-                            if (location != null) {
-                                val uri = "https://api.whatsapp.com/send?text=${
-                                    Uri.encode("$message\n\nUbicación:\nhttps://maps.google.com/?q=${location.latitude},${location.longitude}")
-                                }".toUri()
-                                val intent = Intent(Intent.ACTION_VIEW, uri)
-                                //intent.setPackage("com.whatsapp")
-                                context.startActivity(intent)
-                            } else {
-                                Toast.makeText(context, "No se pudo obtener la ubicación", Toast.LENGTH_SHORT).show()
-                            }
-                        }
-                    } else {
-                        permissionLauncher.launch(Manifest.permission.ACCESS_FINE_LOCATION)
-                    }
-                },
-                modifier = Modifier.fillMaxWidth()
+        }
+        setContent {
+            Surface(
+                modifier = Modifier.fillMaxSize(),
+                color = Color(0xFFE0F7FA)
             ) {
-                Text("Enviar por WhatsApp")
+                SendMessageWithLocation()
             }
         }
     }
 }
 
 @Composable
-fun Greeting(name: String, modifier: Modifier = Modifier) {
-    Text(
-        text = "Hello $name!",
-        modifier = modifier
-    )
-}
+fun SendMessageWithLocation() {
+    val context = LocalContext.current
+    val message = remember { mutableStateOf("") }
+    val phoneNumber = remember { mutableStateOf("+507 ") }
 
-@Preview(showBackground = true)
-@Composable
-fun GreetingPreview() {
-    _04BackgroundLocationyEnviaraWhatsappTheme {
-        Greeting("Android")
+    val locationLink = remember { mutableStateOf("Ubicación no disponible") }
+
+    val fusedLocationClient = LocationServices.getFusedLocationProviderClient(context)
+
+    LaunchedEffect(Unit) {
+        if (
+            ActivityCompat.checkSelfPermission(
+                context,
+                Manifest.permission.ACCESS_FINE_LOCATION
+            ) == PackageManager.PERMISSION_GRANTED
+        ) {
+            fusedLocationClient.lastLocation.addOnSuccessListener { location ->
+                location?.let {
+                    locationLink.value = "https://www.google.com/maps?q=${it.latitude},${it.longitude}"
+                }
+            }
+        }
+    }
+
+    // se activa solo si hay ubicación válida
+    val isLocationReady = locationLink.value != "Ubicación no disponible"
+
+    Box(
+        modifier = Modifier.fillMaxSize(),
+        contentAlignment = Alignment.Center
+    ) {
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            elevation = CardDefaults.cardElevation(defaultElevation = 8.dp),
+            colors = CardDefaults.cardColors(containerColor = Color.White)
+        ) {
+            Column(
+                modifier = Modifier
+                    .padding(24.dp)
+                    .fillMaxWidth(),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Text(
+                    text = "Enviar mensaje con ubicación",
+                    fontSize = 22.sp,
+                    color = Color(0xFF006064),
+                    fontWeight = FontWeight.ExtraBold,
+                    modifier = Modifier.padding(bottom = 16.dp)
+                )
+
+                Text(
+                    text = "Completa los campos para enviar",
+                    fontSize = 16.sp,
+                    color = Color.Gray,
+                    modifier = Modifier.padding(bottom = 24.dp)
+                )
+
+                OutlinedTextField(
+                    value = phoneNumber.value,
+                    onValueChange = { phoneNumber.value = it.filter { c -> c.isDigit() || c == '+' } },
+                    label = { Text("Número de WhatsApp (ej: +50760001111)") },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true
+                )
+
+                Spacer(modifier = Modifier.height(16.dp))
+                OutlinedTextField(
+                    value = message.value,
+                    onValueChange = { message.value = it },
+                    label = { Text("Escribe tu mensaje") },
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                Spacer(modifier = Modifier.height(24.dp))
+
+                Button(
+                    onClick = {
+                        val finalMessage = "${message.value.trim()}\nMi ubicación: ${locationLink.value}"
+                        val cleanNumber = phoneNumber.value.replace("+", "").trim()
+                        val uri = Uri.parse("https://api.whatsapp.com/send?phone=$cleanNumber&text=${Uri.encode(finalMessage)}")
+                        val intent = Intent(Intent.ACTION_VIEW, uri)
+                        context.startActivity(intent)
+                    },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 16.dp),
+                    elevation = ButtonDefaults.buttonElevation(defaultElevation = 6.dp),
+                    enabled = isLocationReady
+                ) {
+                    Text("Enviar por WhatsApp")
+                }
+            }
+        }
     }
 }
